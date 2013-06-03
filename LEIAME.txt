@@ -1,0 +1,83 @@
+*******Informações básicas**********
+
+Para cria uma rede MLP você pode o seguinte construtor não padrão:
+
+MLPNetwork<MLPLayer, MLPNeuron, LogisticFunction, double> myNet(int numWeightsInput, int numLayers, int *numNeurons);
+Dentro do template(<aqui>) você deve definir: que classe será usada como camada(MLPLayer), 
+                                              como neuronio(MLPNeuron),
+                                              como função de ativiação(LogisticFunction), 
+                                              e a precisão(double).
+Nos parametros voce define: a quantidade de neuronios na camada de entrada(numWeightsInput), 
+                            a quantidade de camadas sem contar a camada de entrada(numLayers), 
+                            um vetor com a quantidade de neuronios em cada camada(*numNeurons).
+    
+Ou você pode chamar o construtor padrão, mas depois você deverá inicializar a rede:
+initialize(int numWeightsInput, int numLayers, int *numNeurons);
+
+
+Após inicializar voce deve setar alguns parametros:
+setParameters(double learningRate, double minimumError, double momentumRate, int maximumEpochs)
+Aqui vão: a taxa de aprendizado(learningRate), 
+          o erro minimo (minimumError) utilizado como criterio de parada, coloque aqui um valor próximo de zero pois esse valor é na realidade a diferença do erro entre duas épocas, 
+          a taxa do termo momentum (momentumRate), 
+          e o numero maximo de epocas(maximumEpochs) utilizado como criterio de parada.
+
+Após isso você já pode realizar o treinamento:
+train(Type** inputSet, Type** intended, int numInputs)
+Aqui vão: a matriz com os valores de entrada (inputSet), 
+          a matriz com os valores pretendidos (intended), 
+          e o numero de exemplares dessa entrada (numInputs).
+
+Para testar a rede apos o treinamento chame:
+Type** answer(Type** in, int inSize)
+Os parametros de entrada são: a matriz de entrada(in),
+                              e a quantidade de exemplares dessa entrada(inSize).
+Esse metodo retorna uma matriz contendo resposta da rede. Essa matriz pode ser comparada, por exemplo com a matriz intended.
+
+As matrizes são assim:
+set[i][j]: i -> um exemplar de treinamento;
+           j -> uma das dimensões do exemplar de treinamento i.
+
+
+*****Sobre a classe input*****
+
+Para criar um objeto input chame:
+Input<double> Set;
+Dentro do template voce define a precisão(double).
+
+Em seguida voce pode carregar o objeto com os valores de algum arquivo:
+readData(const char* filename, bool supervised);
+Os parametros são: o nome do arquivo(filename),
+                   e um booleano para informar se o treinamento é supervisionado(supervised).
+
+Em seguida voce pode embaralhar o conjunto:
+shuffle();
+
+Voce pode normalizar o conjunto:
+normalize();
+
+E voce pode dividir o conjunto em um subconjunto de treinamento e outro de teste:
+setTestProportion(double);
+O valor de entrada representa porcentagem do cojunto total que será posto no conjunto de teste.
+Coloque aqui um valor entre 0 e 1 ou entre 0 e 100.
+
+Para ter acesso aos conjunto utilize os metodos:
+Type** getData(): retorna os volores de entrada de todos o exemplos fornecidos no arquivo;
+Type** getIntendedClasses(): retorna os valores de saida de todos os exemplos fornecidos no arquivo;
+
+Type** getTrainingData(): retorna os volores de entrada dos exemplos que foram colocados no conjunto de treinamento;
+Type** getTrainingIntendedClasses(): retorna os valores de saida dos exemplos que foram colocados no conjunto de treinamento;
+
+Type** getTestData(): retorna os volores de entrada dos exemplos que foram colocados no conjunto de teste;
+Type** getTestIntendedClasses(): retorna os valores de saida dos exemplos que foram colocados no conjunto de teste;
+
+Obs.: o destrutor da classe Input irá desalocar a memoria alocada para essas matrizes, portanto cuidado quando criar o objeto input dento de um if ou for.
+
+Para maiores detalhes olhe os comentários das classes.
+
+Veja tambem o exemplo de código fornecido.
+
+
+
+
+
