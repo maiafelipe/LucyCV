@@ -8,7 +8,7 @@
 
 #define AMOUNT_PIX 4
 #define AMOUNT_CLASS 3
-
+//
 int main(){
 	
 	Input<double> Set; //cria o conjunto de entrada.
