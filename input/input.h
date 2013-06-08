@@ -36,7 +36,7 @@ public:
 	 * @param filename the adress of the file; 
 	 * @param supervised inform if the training is supervised.
 	 */    
-    void readData(const char*, bool);
+    bool readData(const char*, bool);
 
     void readDataImageIbI(const char* filename, int numColors, bool supervised);
     
@@ -245,7 +245,7 @@ Input<Type>::~Input()
 
 
 template <class Type>
-void Input<Type>::readData(const char* filename, bool supervised)
+bool Input<Type>::readData(const char* filename, bool supervised)
 {
     int n = this->countInput(filename);
     bool adaptar = false;
@@ -256,15 +256,23 @@ void Input<Type>::readData(const char* filename, bool supervised)
     numAttributes = 0;
     
     while(word != "->"){
-        numAttributes++;
-        dataFile >> word;
+        if(word == "d" || word == "i" || word == "f" || word == "s")
+        {
+            numAttributes++;
+            dataFile >> word;
+        }
+        else return false;
     }
     dataFile >> word;
     while(word != "begin"){
         
         if(word == "s") adaptar = true;
-        numOut++;
-        dataFile >> word;
+        if(word == "d" || word == "i" || word == "f" || word == "s")
+        {
+            numOut++;
+            dataFile >> word;
+        }
+        else return false;
     }
 
     numAllInputs = (n - 2);
@@ -340,6 +348,7 @@ void Input<Type>::readData(const char* filename, bool supervised)
             allClasses[i][classIndex] = 1;
         }
     }
+    return true;
 }
 
 template <class Type>
