@@ -42,6 +42,12 @@ public:
     
     void readDataImagePbP(const char* filename, int numColors, bool supervised);
     
+
+    /**
+     * Return all the input data  for the network.  
+     */
+    void clear();
+
     /**
 	 * Return all the input data  for the network.  
 	 */
@@ -629,6 +635,86 @@ void Input<Type>::readDataImagePbP(const char* filename, int numColors, bool sup
     numAllInputs = numAllInputs * numPixels;
 }
 
+template <class Type>
+void Input<Type>::clear()
+{
+    if (this->numAllInputs != 0)
+    {
+        for (int i = 0; i < this->numAllInputs; i++)
+        {
+            delete[] this->allData[i];
+        }
+        delete[] this->allData;
+    }
+    
+    if (this->numClasses != 0)
+    {
+        for (int i = 0; i < this->numAllInputs; i++)
+        {
+            delete[] this->allClasses[i];
+        }
+        delete[] this->allClasses;
+    }
+
+    if (this->numTrainingInputs != 0)
+    {
+        for (int i = 0; i < this->numTrainingInputs; i++)
+        {
+            delete[] this->trainingData[i];
+        }
+        delete[] this->trainingData;
+    }
+    
+    if (this->numClasses != 0)
+    {
+        for (int i = 0; i < this->numTrainingInputs; i++)
+        {
+            delete[] this->trainingClasses[i];
+        }
+        delete[] this->trainingClasses;
+    }
+
+    if (this->numTestInputs != 0)
+    {
+        for (int i = 0; i < this->numTestInputs; i++)
+        {
+            delete[] this->testData[i];
+        }
+        delete[] this->testData;
+    }
+    
+    if (this->numClasses != 0)
+    {
+        for (int i = 0; i < this->numTestInputs; i++)
+        {
+            delete[] this->testClasses[i];
+        }
+        delete[] this->testClasses;
+    }
+
+    if(confMatrix)
+    {   
+        for(int c = 0; c < numClasses; c++)
+        {
+            delete[] confMatrix[c];
+        }
+        delete[] confMatrix;
+    }
+    
+    this->numAttributes = 0;
+    this->numClasses = 0;
+    this->numAllInputs = 0;
+    confMatrix = NULL;
+    
+    allData = NULL;
+    allClasses = NULL;
+    
+    testData = NULL;
+    testClasses = NULL;
+  
+    trainingData = NULL;
+    trainingClasses = NULL;
+}
 
 template <class Type>
 Type** Input<Type>::getData()
