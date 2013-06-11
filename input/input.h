@@ -108,6 +108,14 @@ public:
 	 * This method will return the number of classes of data present in the set. Normaly, must be compatible with the output layer of the network.
 	 */
     int getNumClasses();
+    /**
+     * This method will return the height of the imagens in case there is any.
+     */
+    int getImgHeight();
+    /**
+     * This method will return the width of the imagens in case there is any.
+     */
+    int getImgWidth();
     
     /**
 	 * Return the number of instances in a file.
@@ -161,6 +169,9 @@ private:
     vector<string> classes;
     
     int ** confMatrix;
+
+    int imgHeight;
+    int imgWidth
 };
 
 template <class Type>
@@ -179,6 +190,9 @@ Input<Type>::Input()
   
     trainingData = NULL;
     trainingClasses = NULL;
+
+    imgHeight = 0;
+    imgWidth = 0;
 }
 
 
@@ -402,7 +416,8 @@ void Input<Type>::readDataImageIbI(const char* filename, int numColors, bool sup
         IplImage *img = cvCreateImage( cvSize((int)((full->width*perc)/100) , (int)((full->height*perc)/100) ), full->depth, full->nChannels );
         cvResize(full, img);
         numAttributes = img->height * img->width * numColors;
-	//cout<<numAttributes<<endl;
+        imgHeight = img->height;
+        imgWidth = img->width;
         int j = 0;
         allDataLocal[i] = new Type[numAttributes];
         for(int h = 0; h < img->height; h++){
@@ -700,7 +715,7 @@ void Input<Type>::clear()
         }
         delete[] confMatrix;
     }
-    
+
     this->numAttributes = 0;
     this->numClasses = 0;
     this->numAllInputs = 0;
@@ -985,6 +1000,16 @@ int Input<Type>::getNumAttributes(){
 template <class Type>
 int Input<Type>::getNumClasses(){
     return numClasses;
+}
+
+template <class Type>
+int Input<Type>::getImgHeight(){
+    return imgHeight;
+}
+
+template <class Type>
+int Input<Type>::getImgWidth(){
+    return imgWidth;
 }
 
 template <class Type>
