@@ -171,7 +171,7 @@ private:
     int ** confMatrix;
 
     int imgHeight;
-    int imgWidth
+    int imgWidth;
 };
 
 template <class Type>
@@ -758,7 +758,15 @@ void Input<Type>::setTestProportion(double p)
 	numTestInputs = numAllInputs * p;
 	numTrainingInputs = numAllInputs - numTestInputs;
 	//cout<<numTrainingInputs<<" "<<numTestInputs<<endl;
-	if(trainingClasses == NULL)
+	if(trainingClasses != NULL)
+    {
+        for (int i = 0; i < numTrainingInputs; i++)
+        {
+            delete[] trainingClasses[i];
+        }
+        delete[] trainingClasses;
+    }
+    if(trainingClasses == NULL)
 	{
 		trainingClasses = new Type*[numTrainingInputs];
         for (int i = 0; i < numTrainingInputs; i++)
@@ -766,6 +774,14 @@ void Input<Type>::setTestProportion(double p)
             trainingClasses[i] = new Type [numClasses];
         }
 	}
+    if(trainingData != NULL)
+    {
+        for (int i = 0; i < numTrainingInputs; i++)
+        {
+            delete[] trainingData[i];
+        }
+        delete[] trainingData;
+    }
 	if(trainingData == NULL)
 	{
 		trainingData = new Type*[numTrainingInputs];
@@ -774,6 +790,14 @@ void Input<Type>::setTestProportion(double p)
             trainingData[i] = new Type [numAttributes];
         }
 	}
+    if(testClasses != NULL)
+    {
+        for (int i = 0; i < numTestInputs; i++)
+        {
+            delete[] testClasses[i];
+        }
+        delete[] testClasses;
+    }
 	if(testClasses == NULL)
 	{
 		testClasses = new Type*[numTestInputs];
@@ -782,6 +806,14 @@ void Input<Type>::setTestProportion(double p)
             testClasses[i] = new Type [numClasses];
         }
 	}
+    if(testData != NULL)
+    {
+        for (int i = 0; i < numTestInputs; i++)
+        {
+            delete[] testData[i];
+        }
+        delete[] testData;
+    }
 	if(testData == NULL)
 	{
 		testData = new Type*[numTestInputs];
