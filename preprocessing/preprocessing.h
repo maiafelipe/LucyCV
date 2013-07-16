@@ -10,7 +10,7 @@
 
 using namespace std;
 
-using namespace cv;
+// using namespace cv;
 
 template <class Type>
 class PreProcessing
@@ -22,7 +22,7 @@ private:
   Type* norMean;
   Type* norStdDev;
 
-  PCA* objPca; 
+  cv::PCA* objPca; 
 
   bool initNorMinimum;
   bool initNorDiference;
@@ -39,6 +39,10 @@ public:
   Type** normalize_mean(Type** in, int n_patt, int n_att, bool relative = false);
 
   Type** pca(Type** in, int n_patt, int n_att, int max_att, bool relative = false);
+
+  int detectFace(Type** in, Type** desired, int n_patt, int n_att, int n_class, int origHeight, int origWidth, int newHeight, int newWidth);
+
+  IplImage* detectAFace(cv::Mat& img, CascadeClassifier& cascade, double scale, bool tryflip, IplImage* src );
 };
 
 template <class Type>
@@ -81,6 +85,7 @@ Type** PreProcessing<Type>::normalize(Type** in, int n_patt, int n_att, bool rel
 {
   int lines = n_patt;
   int columns = n_att;
+  // cout<<n_patt<<endl;
   if(!relative)
   {
     if(initNorMinimum)
@@ -103,6 +108,7 @@ Type** PreProcessing<Type>::normalize(Type** in, int n_patt, int n_att, bool rel
       Type maximum = 0;
       for (int i = 0; i < lines; i++)
       {
+        // cout<<i<<endl;
         if (in[i][j] < norMinimum[j])
           norMinimum[j] = in[i][j];
         if (in[i][j] > maximum)
@@ -173,14 +179,14 @@ Type** PreProcessing<Type>::normalize_mean(Type** in, int n_patt, int n_att, boo
 template <class Type>
 Type** PreProcessing<Type>::pca(Type** in, int numInputs, int numAttributes, int max_att, bool relative)
 {
-  Mat inMatrix(numInputs, numAttributes, CV_64F);
+  cv::Mat inMatrix(numInputs, numAttributes, CV_64F);
     
   for(int i = 0; i < numInputs; i++)
   {
-      for(int j = 0; j < numAttributes; j++)
-      {
-          inMatrix.col(j).row(i) = in[i][j]; 
-      }
+    for(int j = 0; j < numAttributes; j++)
+    {
+      inMatrix.col(j).row(i) = in[i][j]; 
+    }
   }
   if(!relative)
   {
@@ -189,7 +195,7 @@ Type** PreProcessing<Type>::pca(Type** in, int numInputs, int numAttributes, int
       delete objPca;
       initObjPca = false;
     }
-    objPca = new PCA(inMatrix, Mat(), CV_PCA_DATA_AS_ROW, max_att);  
+    objPca = new cv::PCA(inMatrix, Mat(), CV_PCA_DATA_AS_ROW, max_att);  
     initObjPca = true;
   }
     
@@ -198,7 +204,8 @@ Type** PreProcessing<Type>::pca(Type** in, int numInputs, int numAttributes, int
     return NULL;
   }
   //projetar o training
-  Mat projection;
+
+  cv::Mat projection;
   objPca->project(inMatrix, projection);
   
   Type **buffet = new Type* [numInputs];
@@ -220,6 +227,220 @@ Type** PreProcessing<Type>::pca(Type** in, int numInputs, int numAttributes, int
   }
   
   return outData;
+}
+
+template <class Type>
+int PreProcessing<Type>::detectFace(Type** in, Type** desired, int n_patt, int n_att, int n_class, int origHeight, int origWidth, int newHeight, int newWidth)
+{
+  int count = 0;
+  Type** resultIn = new Type*[n_patt];
+  Type** resultDesired = new Type*[n_patt];
+  for (int patt = 0; patt < n_patt; patt++)
+  {
+    resultIn[patt] = new Type[newHeight*newWidth];
+    resultDesired[patt] = new Type[n_class];
+    for (int cl = 0; cl < n_class; cl++)
+    {
+      resultDesired[patt][cl] = 0;
+    }
+  }
+  int numColors = 1;
+  for (int patt = 0; patt < n_patt; patt++)
+  {
+    // cout<<"patt "<<patt<<endl;
+    int att = 0;
+    Mat imag(origHeight, origWidth, CV_8UC1);
+    for (int h = 0; h < origHeight; h++)
+    {
+      for (int w = 0; w < origWidth; w++)
+      {
+        imag.col(w).row(h) = in[patt][att];  
+        // cout<<imag.col(w).row(h)<<" ";
+        att++;
+      }
+      // cout<<endl;
+    }
+    // cout<<"v1"<<endl;
+    // cout<<endl<<endl;
+    // cout<<patt<<endl;
+    // namedWindow( "Display window", CV_WINDOW_AUTOSIZE );// Create a window for display.
+    // imshow( "Display window", imag );   
+    // waitKey(0);
+ 
+    IplImage imagIPL = imag;  
+    char nome[50];
+    // sprintf(nome, "Janela %d", patt);
+    // cvShowImage(nome, &imagIPL);
+    
+    CascadeClassifier cascade;
+    string cascadeName = "haarcascades/haarcascade_frontalface_alt.xml";
+    if( !cascade.load(cascadeName) )
+    {
+        cerr << "ERROR: Could not load classifier cascade" << endl;
+        return 0;
+    }
+    // cout<<"v2"<<endl;
+    IplImage* face = NULL;
+    face = detectAFace(imag, cascade, 1, false, &imagIPL);
+    // cout<<"v3"<<endl;
+    IplImage *rface = cvCreateImage( cvSize(newWidth, newHeight), imagIPL.depth, imagIPL.nChannels );
+    // cout<<"v4"<<endl;
+
+    if(face){
+        cvResize(face, rface);
+         // sprintf(nome, "Janela %d 2", patt);
+         // cvShowImage(nome, rface);
+         // waitKey(0);
+        count++;
+        // cout<<"2"<<endl;
+    }else{
+        string cascadeName = "haarcascades/haarcascade_frontalface_default.xml";
+        if( !cascade.load(cascadeName) )
+        {
+            cerr << "ERROR: Could not load classifier cascade" << endl;
+            return 0;
+        }
+        IplImage* face = NULL;
+        face = detectAFace(imag, cascade, 1, false, &imagIPL);
+        if(face){
+            cvResize(face, rface);
+            // sprintf(nome, "Janela %d 2", patt);
+            // cvShowImage(nome, rface);
+            // waitKey(0);
+            count++;
+            // cout<<"3"<<endl;   
+        }else{
+            string cascadeName = "haarcascades/haarcascade_frontalface_alt2.xml";
+            if( !cascade.load(cascadeName) )
+            {
+                cerr << "ERROR: Could not load classifier cascade" << endl;
+                return 0;
+            }
+            IplImage* face = NULL;
+            face = detectAFace(imag, cascade, 1, false, &imagIPL);
+            if(face){
+                cvResize(face, rface);
+                // sprintf(nome, "Janela %d 2", patt);
+                // cvShowImage(nome, rface);
+                // waitKey(0);
+                count++;
+                // cout<<"4"<<endl;   
+            }else{
+                string cascadeName = "haarcascades/haarcascade_profileface.xml";
+                if( !cascade.load(cascadeName) )
+                {
+                    cerr << "ERROR: Could not load classifier cascade" << endl;
+                    return 0;
+                }
+                IplImage* face = NULL;
+                face = detectAFace(imag, cascade, 1, false, &imagIPL);
+                if(face){
+                    cvResize(face, rface);
+                    // sprintf(nome, "Janela %d 2", patt);
+                    // cvShowImage(nome, rface);
+                    // waitKey(0);
+                    count++;
+                    // cout<<"5"<<endl;                     
+                }
+            }
+        }
+    }
+    if(face){
+        // cout<<"detec: 1"<<endl;   
+        int j = 0;
+        for(int h = 0; h < newHeight; h++){
+            for(int w = 0; w < newWidth; w++){
+                CvScalar pont = cvGet2D(rface,h,w);
+                for(int c = 0; c < numColors; c++){
+                    resultIn[count-1][j] = pont.val[c];
+                    j++; 
+                }
+                // cout<<h<<" "<<w<<" "<<j<<" "<<rface->height<<" "<<rface->width<<endl;
+            }
+        }
+        // cout<<"detec: 2"<<endl;
+        for (int cl = 0; cl < n_class; cl++)
+        {
+          resultDesired[count-1][cl] = desired[patt][cl];
+        }
+        // cout<<"detec: 3"<<endl;
+
+    }else{
+        // int j = 0;
+        // for(int h = 0; h < newHeight; h++){
+        //     for(int w = 0; w < newWidth; w++){
+        //         for(int c = 0; c < numColors; c++){
+        //             resultIn[patt][j] = 0;
+        //             j++; 
+        //         }
+        //     }
+        // }
+    }
+  }
+  in = resultIn;
+  desired = resultDesired;
+  cout<<count<<"/"<<n_patt<<endl;
+  return count;
+}
+
+template <class Type>
+IplImage*  PreProcessing<Type>::detectAFace( Mat& img, CascadeClassifier& cascade,
+                                          double scale, bool tryflip, IplImage* src )
+{
+    int i = 0;
+    double t = 0;
+    vector<Rect> faces, faces2;
+
+    Mat gray, smallImg( cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
+
+    // cvtColor( img, gray, CV_BGR2GRAY );
+    gray = img;  
+    resize( gray, smallImg, smallImg.size(), 0, 0, INTER_LINEAR );
+    equalizeHist( smallImg, smallImg );
+
+    t = (double)cvGetTickCount();
+    cascade.detectMultiScale( smallImg, faces,
+        1.1, 2, 0
+        //|CV_HAAR_FIND_BIGGEST_OBJECT
+        //|CV_HAAR_DO_ROUGH_SEARCH
+        |CV_HAAR_SCALE_IMAGE
+        ,
+        Size(30, 30) );
+    if( tryflip )
+    {
+        flip(smallImg, smallImg, 1);
+        cascade.detectMultiScale( smallImg, faces2,
+                                 1.1, 2, 0
+                                 //|CV_HAAR_FIND_BIGGEST_OBJECT
+                                 //|CV_HAAR_DO_ROUGH_SEARCH
+                                 |CV_HAAR_SCALE_IMAGE
+                                 ,
+                                 Size(30, 30) );
+        for( vector<Rect>::const_iterator r = faces2.begin(); r != faces2.end(); r++ )
+        {
+            faces.push_back(Rect(smallImg.cols - r->x - r->width, r->y, r->width, r->height));
+        }
+    }
+    t = (double)cvGetTickCount() - t;
+    // printf( "detection time = %g ms\n", t/((double)cvGetTickFrequency()*1000.) );
+    if(faces.size() == 0) return NULL;
+    for( vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++ )
+    {
+      
+        IplImage* cropped = cvCreateImage(cvSize(r->width*scale,r->height*scale), src->depth, src->nChannels ) ;
+        cvSetImageROI( src,  cvRect( r->x*scale,r->y*scale ,  r->width*scale,r->height*scale) );
+      
+        // Do the copy
+        cvCopy( src, cropped );
+        cvResetImageROI( src ); 
+        char nome[50];
+        // sprintf(nome, "Janela %d", i);
+        // cvShowImage(nome, cropped );
+        
+        //cvSaveImage("test.jpg", cropped);
+        return cropped; 
+    }
+    return NULL;
 }
 
 #endif
