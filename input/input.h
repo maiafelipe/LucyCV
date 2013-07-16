@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <sstream>
 #include "opencv2/imgproc/imgproc_c.h"
 #include "opencv2/legacy/legacy.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -38,7 +39,7 @@ public:
 	 */    
     bool readData(const char*, bool);
 
-    void readDataImageIbI(const char* filename, int numColors, bool supervised);
+    void readDataImageIbI(const char* filename, int numColors, double reduce, bool supervised);
     
     void readDataImagePbP(const char* filename, int numColors, bool supervised);
     
@@ -142,6 +143,15 @@ public:
      * @param amount amount of samples that will be compared.
 	 */
     Type  getRate(Type** obtaned,Type** desired, int amount);
+
+    Type** getTrainingInFold(int fold, int total);
+
+    Type** getTrainingOutFold(int fold, int total);
+
+    Type** getTestInFold(int fold, int total);
+
+    Type** getTestOutFold(int fold, int total);
+
     
     /**
 	 * This method will return the confusion matrix created in getRate().
@@ -180,6 +190,8 @@ Input<Type>::Input()
     this->numAttributes = 0;
     this->numClasses = 0;
     this->numAllInputs = 0;
+    this->numTrainingInputs = 0;
+    this->numTestInputs = 0;
     confMatrix = NULL;
     
     allData = NULL;
@@ -199,6 +211,7 @@ Input<Type>::Input()
 template <class Type>
 Input<Type>::~Input()
 {
+    
     if (this->numAllInputs != 0)
     {
         for (int i = 0; i < this->numAllInputs; i++)
@@ -216,7 +229,7 @@ Input<Type>::~Input()
         }
         delete[] this->allClasses;
     }
-
+    
     if (this->numTrainingInputs != 0)
     {
         for (int i = 0; i < this->numTrainingInputs; i++)
@@ -226,7 +239,7 @@ Input<Type>::~Input()
         delete[] this->trainingData;
     }
     
-    if (this->numClasses != 0)
+    if (this->numTrainingInputs != 0)
     {
         for (int i = 0; i < this->numTrainingInputs; i++)
         {
@@ -234,7 +247,7 @@ Input<Type>::~Input()
         }
         delete[] this->trainingClasses;
     }
-
+    
     if (this->numTestInputs != 0)
     {
         for (int i = 0; i < this->numTestInputs; i++)
@@ -252,7 +265,7 @@ Input<Type>::~Input()
         }
         delete[] this->testClasses;
     }
-
+    
 	if(confMatrix)
 	{	
 		for(int c = 0; c < numClasses; c++)
@@ -372,7 +385,7 @@ bool Input<Type>::readData(const char* filename, bool supervised)
 }
 
 template <class Type>
-void Input<Type>::readDataImageIbI(const char* filename, int numColors, bool supervised)
+void Input<Type>::readDataImageIbI(const char* filename, int numColors, double reduce, bool supervised)
 {
     int n = this->countInput(filename);
     bool adaptar = false;
@@ -412,7 +425,7 @@ void Input<Type>::readDataImageIbI(const char* filename, int numColors, bool sup
         dataFile >> word;
 	//cout<<word<<endl;
         IplImage *full = cvLoadImage(word.c_str(),1);
-        int perc = 100;
+        int perc = 100 * reduce;
         IplImage *img = cvCreateImage( cvSize((int)((full->width*perc)/100) , (int)((full->height*perc)/100) ), full->depth, full->nChannels );
         cvResize(full, img);
         numAttributes = img->height * img->width * numColors;
@@ -551,102 +564,157 @@ void Input<Type>::readDataImagePbP(const char* filename, int numColors, bool sup
     }
     dataFile >> word;
     while(word != "begin"){
-        if(word == "s") adaptar = true;
+        if(word == "s" || word == "image") adaptar = true;
         numOut++;
         dataFile >> word;
     }
     
-    this->numAllInputs = n-2;
-    cout<<numAllInputs<<endl;
+    this->numAllInputs = n-1;
+    // cout<<numAllInputs<<endl;
     dataFile >> word;
     IplImage* img = cvLoadImage(word.c_str(),1);
     int numPixels = img->height * img->width;
+    // cout<<numPixels<<" "<<numImgs<<endl;
     allData = new Type* [numAllInputs*numPixels];
     numAttributes = numImgs * numColors;
     for(int i = 0; i < numAllInputs*numPixels; i++)
         allData[i] = new Type[numAttributes];
     Type temporaryClasses[numAllInputs*numPixels];
     if(supervised && !adaptar){
-        this->numClasses = numOut;
-        allClasses = new Type*[numAllInputs*numPixels];
-        for (int i = 0; i < numAllInputs*numPixels; i++)
-        {
-            allClasses[i] = new Type [numClasses];
-        }
+        this->numClasses = 0;
+        allClasses = NULL;
+    //     for (int i = 0; i < numAllInputs*numPixels; i++)
+    //     {
+    //         allClasses[i] = new Type [numClasses];
+    //     }
     }
     for (int i = 0; i < numAllInputs; i++)
     {
         for(int j = 0; j < numImgs; j++){
+            // cout<<i<<" "<<j<<endl;
             int k = 0;
+            img = cvLoadImage(word.c_str(),1);
             for(int h = 0; h < img->height; h++){
-		        for(int w = 0; w < img->width; w++){
-		            CvScalar pont = cvGet2D(img,h,w);
-		            for(int c = 0; c < numColors; c++){
-		                allData[i*numPixels + k][j*numColors+c] = pont.val[c]; 
-		            }
-		            k++; 
-		        }
+                for(int w = 0; w < img->width; w++){
+                    CvScalar pont = cvGet2D(img,h,w);
+                    for(int c = 0; c < numColors; c++){
+                        allData[i*numPixels + k][j*numColors+c] = pont.val[c]; 
+                    }
+                    k++; 
+                }
             }
             dataFile >> word;
-            img = cvLoadImage(word.c_str(),1);
+            // cout<<word<<endl;
         }
         if (supervised && adaptar)
         {
-            dataFile >> word;
-			ifstream classFile(word.c_str());
-			string temporaryClass;
-			
-			for(int j = 0; j < numPixels; j++){
-				classFile >> temporaryClass;
-		        bool inClass = false;
-		        int indexInClass;
-		        int k;
-		        for (k = 0; k < classes.size(); k++)
-		            if (classes[k] == temporaryClass)
-		            {
-		                inClass = true;
-		                indexInClass = k;
-		                break;
-		            }
-		        if (inClass == false)
-		        {
-		            classes.push_back(temporaryClass);
-		        }
-		        temporaryClasses[i*numPixels + j] = k;
+            img = cvLoadImage(word.c_str(), CV_LOAD_IMAGE_COLOR);
+            vector<string> classColors;
+            if(allClasses == NULL){
+                for(int h = 0; h < img->height; h++){
+                    for(int w = 0; w < img->width; w++){
+                        CvScalar pont = cvGet2D(img,h,w);
+                        stringstream ss;//create a stringstream
+                        ss<<pont.val[0]<<pont.val[1]<<pont.val[2];    
+                        string pixelName = ss.str();
+                        bool present = false;
+                        for (int cc = 0; cc < classColors.size(); cc++)
+                        {
+                            if(pixelName == classColors[cc]) present = true;
+                        }
+                        if(!present){
+                            classColors.push_back(pixelName);
+                            // cout<<pixelName<<endl;
+                        }
+                    }
+                }
+                classes = classColors;
+                this->numClasses = classColors.size();
+                allClasses = new Type*[numAllInputs*numPixels];
+                for (int i = 0; i < numAllInputs*numPixels; i++)
+                {
+                    allClasses[i] = new Type [numClasses];
+                    for (int z = 0; z < numClasses; z++)
+                    {
+                        allClasses[i][z] = 0;
+                    }
+                }
             }
+
+            int k = 0;
+
+            for(int h = 0; h < img->height; h++){
+                for(int w = 0; w < img->width; w++){
+                    CvScalar pont = cvGet2D(img,h,w);
+                    stringstream ss;//create a stringstream
+                    ss<<pont.val[0]<<pont.val[1]<<pont.val[2];    
+                    string pixelName = ss.str();
+
+                    for(int cc = 0; cc < classes.size(); cc++){
+                        if(pixelName == classes[cc]){
+                            allClasses[i*numPixels + k][cc] = 1;
+                        } 
+                    }
+                    k++; 
+                }
+            }
+
+
+            // ifstream classFile(word.c_str());
+            // string temporaryClass;
+            
+            // for(int j = 0; j < numPixels; j++){
+            //  classFile >> temporaryClass;
+         //        bool inClass = false;
+         //        int indexInClass;
+         //        int k;
+         //        for (k = 0; k < classes.size(); k++)
+         //            if (classes[k] == temporaryClass)
+         //            {
+         //                inClass = true;
+         //                indexInClass = k;
+         //                break;
+         //            }
+         //        if (inClass == false)
+         //        {
+         //            classes.push_back(temporaryClass);
+         //        }
+         //        temporaryClasses[i*numPixels + j] = k;
+   //          }
+            dataFile >> word;
         }
         else if(supervised)
         {
-        	dataFile >> word;
-        	while(word == "->" )
-                 dataFile >> word;
-            cout<<word<<endl;
-			ifstream classFile(word.c_str());
-        	for(int j = 0; j < numPixels; j++){
-            	for (int k = 0; k < numClasses; k++){
-            		double felipe;
-            		classFile >> felipe;
-            		allClasses[i*numPixels + j][k] = felipe;
-            	}
-        	}
+             dataFile >> word;
+   //       while(word == "->" )
+   //               dataFile >> word;
+   //          cout<<word<<endl;
+            // ifstream classFile(word.c_str());
+   //       for(int j = 0; j < numPixels; j++){
+   //           for (int k = 0; k < numClasses; k++){
+   //               double felipe;
+   //               classFile >> felipe;
+   //          		allClasses[i*numPixels + j][k] = felipe;
+   //          	}
+   //      	}
         }        
     }	   
-    if (supervised && adaptar)
-    {
-        this->numClasses = classes.size();
-        allClasses = new Type*[numAllInputs*numPixels];
-        for (int i = 0; i < numAllInputs*numPixels; i++)
-        {
-            allClasses[i] = new Type [numClasses];
-        }
-        for (int i = 0; i < numAllInputs*numPixels; i++)
-        {
-            for (int j = 0; j < numClasses; j++)
-                allClasses[i][j] = 0;
-            int classIndex = temporaryClasses[i];
-            allClasses[i][classIndex] = 1;
-        }
-    }
+    // if (supervised && adaptar)
+    // {
+    //     this->numClasses = classes.size();
+    //     allClasses = new Type*[numAllInputs*numPixels];
+    //     for (int i = 0; i < numAllInputs*numPixels; i++)
+    //     {
+    //         allClasses[i] = new Type [numClasses];
+    //     }
+    //     for (int i = 0; i < numAllInputs*numPixels; i++)
+    //     {
+    //         for (int j = 0; j < numClasses; j++)
+    //             allClasses[i][j] = 0;
+    //         int classIndex = temporaryClasses[i];
+    //         allClasses[i][classIndex] = 1;
+    //     }
+    // }
     numAllInputs = numAllInputs * numPixels;
 }
 
@@ -758,22 +826,23 @@ void Input<Type>::setTestProportion(double p)
 	numTestInputs = numAllInputs * p;
 	numTrainingInputs = numAllInputs - numTestInputs;
 	//cout<<numTrainingInputs<<" "<<numTestInputs<<endl;
-	if(trainingClasses != NULL)
+if(trainingClasses != NULL)
     {
         for (int i = 0; i < numTrainingInputs; i++)
         {
             delete[] trainingClasses[i];
         }
         delete[] trainingClasses;
+        trainingClasses = NULL;
     }
     if(trainingClasses == NULL)
-	{
-		trainingClasses = new Type*[numTrainingInputs];
+    {
+        trainingClasses = new Type*[numTrainingInputs];
         for (int i = 0; i < numTrainingInputs; i++)
         {
             trainingClasses[i] = new Type [numClasses];
         }
-	}
+    }
     if(trainingData != NULL)
     {
         for (int i = 0; i < numTrainingInputs; i++)
@@ -781,15 +850,16 @@ void Input<Type>::setTestProportion(double p)
             delete[] trainingData[i];
         }
         delete[] trainingData;
+        trainingData = NULL;
     }
-	if(trainingData == NULL)
-	{
-		trainingData = new Type*[numTrainingInputs];
+    if(trainingData == NULL)
+    {
+        trainingData = new Type*[numTrainingInputs];
         for (int i = 0; i < numTrainingInputs; i++)
         {
             trainingData[i] = new Type [numAttributes];
         }
-	}
+    }
     if(testClasses != NULL)
     {
         for (int i = 0; i < numTestInputs; i++)
@@ -797,15 +867,16 @@ void Input<Type>::setTestProportion(double p)
             delete[] testClasses[i];
         }
         delete[] testClasses;
+        testClasses = NULL;
     }
-	if(testClasses == NULL)
-	{
-		testClasses = new Type*[numTestInputs];
+    if(testClasses == NULL)
+    {
+        testClasses = new Type*[numTestInputs];
         for (int i = 0; i < numTestInputs; i++)
         {
             testClasses[i] = new Type [numClasses];
         }
-	}
+    }
     if(testData != NULL)
     {
         for (int i = 0; i < numTestInputs; i++)
@@ -813,15 +884,16 @@ void Input<Type>::setTestProportion(double p)
             delete[] testData[i];
         }
         delete[] testData;
+        testData = NULL;
     }
-	if(testData == NULL)
-	{
-		testData = new Type*[numTestInputs];
+    if(testData == NULL)
+    {
+        testData = new Type*[numTestInputs];
         for (int i = 0; i < numTestInputs; i++)
         {
             testData[i] = new Type [numAttributes];
         }
-	}
+    }
 	for(int tr = 0; tr < numTrainingInputs; tr++)
 	{
 		for(int d = 0; d < numAttributes; d++)
@@ -1140,6 +1212,140 @@ Type Input<Type>::getRate(Type** obtaned,Type** desired, int amount){
 	}
     cout<<rights<<" de "<<amount<<" "<<endl;
     return (Type)rights/(Type)amount;
+}
+
+template <class Type>
+Type** Input<Type>::getTrainingInFold(int fold, int total){
+    int pattInFold = numAllInputs/total;
+    int nPatt = pattInFold*(total-1);
+    cout<<nPatt<<" "<<pattInFold<<endl;
+    Type** trainingInFold = new Type*[nPatt];
+    for (int p = 0; p < nPatt; p++)
+    {
+        trainingInFold[p] = new Type[numAttributes];
+    }
+    int patt = 0;
+    int pattR = 0;
+    for(int f = 1; f <= total; f++){
+        if(f == fold){
+            patt+=pattInFold;
+        }
+        else
+        {
+            for (int p = 0; p < pattInFold; p++)
+            {
+                cout<<pattR+p<<" "<<patt+p<<endl;
+                for (int att = 0; att < numAttributes; att++)
+                {
+                    trainingInFold[pattR+p][att] = allData[patt+p][att];
+                }
+            }
+            patt+=pattInFold;
+            pattR+=pattInFold;
+        }
+        cout<<fold<<endl;
+
+    }
+    return trainingInFold;
+}
+
+template <class Type>
+Type** Input<Type>::getTrainingOutFold(int fold, int total){
+    int pattInFold = numAllInputs/total;
+    int nPatt = pattInFold*(total-1);
+    // cout<<nPatt<<" "<<pattInFold<<endl;
+    Type** trainingOutFold = new Type*[nPatt];
+    for (int p = 0; p < nPatt; p++)
+    {
+        trainingOutFold[p] = new Type[numAttributes];
+    }
+    int patt = 0;
+    int pattR = 0;
+    for(int f = 1; f <= total; f++){
+        if(f == fold){
+            patt+=pattInFold;
+        }
+        else
+        {
+            for (int p = 0; p < pattInFold; p++)
+            {
+                // cout<<pattR+p<<" "<<patt+p<<endl;
+                for (int cl = 0; cl < numClasses; cl++)
+                {
+                    trainingOutFold[pattR+p][cl] = allClasses[patt+p][cl];
+                }
+            }
+            patt+=pattInFold;
+            pattR+=pattInFold;
+        }
+
+    }
+    return trainingOutFold;
+}
+
+
+template <class Type>
+Type** Input<Type>::getTestInFold(int fold, int total){
+    int pattInFold = numAllInputs/total;
+    Type** testInFold = new Type*[pattInFold];
+    for (int p = 0; p < pattInFold; p++)
+    {
+        testInFold[p] = new Type[numAttributes];
+    }
+    int patt = 0;
+    int pattR = 0;
+    for(int f = 1; f <= total; f++){
+        if(f != fold){
+            patt+=pattInFold;
+        }
+        else
+        {
+            for (int p = 0; p < pattInFold; p++)
+            {
+                // cout<<pattR+p<<" "<<patt+p<<endl;
+                for (int att = 0; att < numAttributes; att++)
+                {
+                    testInFold[pattR+p][att] = allData[patt+p][att];
+                }
+            }
+            patt+=pattInFold;
+            pattR+=pattInFold;
+        }
+
+    }
+    return testInFold;
+}
+
+template <class Type>
+Type** Input<Type>::getTestOutFold(int fold, int total){
+    int pattInFold = numAllInputs/total;
+    Type** testOutFold = new Type*[pattInFold];
+    for (int p = 0; p < pattInFold; p++)
+    {
+        testOutFold[p] = new Type[numAttributes];
+    }
+    int patt = 0;
+    int pattR = 0;
+    for(int f = 1; f <= total; f++){
+        if(f != fold){
+            patt+=pattInFold;
+        }
+        else
+        {
+            for (int p = 0; p < pattInFold; p++)
+            {
+                // cout<<pattR+p<<" "<<patt+p<<endl;
+                for (int cl = 0; cl < numClasses; cl++)
+                {
+                    testOutFold[pattR+p][cl] = allClasses[patt+p][cl];
+                }
+            }
+            patt+=pattInFold;
+            pattR+=pattInFold;
+        }
+
+    }
+    return testOutFold;
 }
 
 template <class Type>
